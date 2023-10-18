@@ -1,4 +1,5 @@
 module github.com/eleztian/type2md
+replace github.com/eleztian/type2md => github.com/saviorand/type2md v1.0.0
 
 go 1.18
 
