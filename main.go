@@ -42,7 +42,7 @@ func main() {
 	}
 
 	for _, tp := range dstTypes {
-		log.Printf("start generate %s.%s\n", dstModPath, tp)
+		log.Printf("generating type tables %s.%s\n", dstModPath, tp)
 		fs := parser.Parse(dstModPath, tp)
 
 		md := Markdown{
