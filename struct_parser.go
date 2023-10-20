@@ -287,9 +287,10 @@ func (p *Parser) parseStruct(objStructType *ast.StructType, desc string) StructI
 				{Name: f.Type.(fmt.Stringer).String()},
 			}
 		}
-		if f.Names[0].Name[0] <= 'Z' && f.Names[0].Name[0] >= 'A' {
-			res.Fields = append(res.Fields, p.parseStructField(f)...)
-		}
+		//if f.Names[0].Name[0] <= 'Z' && f.Names[0].Name[0] >= 'A' {
+		fmt.Println("parsing field", f.Names[0].Name)
+		res.Fields = append(res.Fields, p.parseStructField(f)...)
+		//}
 	}
 
 	return res
