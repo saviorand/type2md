@@ -83,12 +83,7 @@ func (p *Parser) getFileTypeDocMap(file *ast.File) map[string]string {
 	return typeDocMap
 }
 
-func (p *Parser) parseFileStruct(
-	modPath string,
-	file *ast.File,
-	exParseMap map[string]struct{},
-	objName string,
-	objStructType *ast.StructType) map[string]StructInfo {
+func (p *Parser) parseFileStruct(modPath string, file *ast.File, exParseMap map[string]struct{}, objName string, objStructType *ast.StructType, isOwnPackage bool) map[string]StructInfo {
 
 	res := make(map[string]StructInfo, 0)
 	typeKey := TypeKey(modPath, objName)
@@ -100,7 +95,7 @@ func (p *Parser) parseFileStruct(
 	namedImportMap := p.fileImportNamed[file]
 	typeDocMap := p.fileTypeDoc[file]
 
-	structInfo := p.parseStruct(objStructType, typeDocMap[objName])
+	structInfo := p.parseStruct(objStructType, typeDocMap[objName], isOwnPackage)
 	res[typeKey] = structInfo
 	for idx, field := range structInfo.Fields {
 		if field.Reference == "" {
@@ -120,7 +115,7 @@ func (p *Parser) parseFileStruct(
 			if _, ok := p.parsedType[key]; ok {
 				continue
 			}
-			for typeName, fields := range p.Parse(subModPath, field.Type) {
+			for typeName, fields := range p.Parse(subModPath, field.Type, "") {
 				res[typeName] = fields
 			}
 		}
@@ -129,13 +124,14 @@ func (p *Parser) parseFileStruct(
 	return res
 }
 
-func (p *Parser) Parse(modPath string, typeName string) map[string]StructInfo {
+func (p *Parser) Parse(modPath string, typeName string, organization string) map[string]StructInfo {
 	pktInfo := p.program.Package(modPath)
 	if pktInfo == nil {
 		return map[string]StructInfo{}
 	}
 	res := make(map[string]StructInfo, 0)
 	exParseMap := make(map[string]struct{})
+	isOwnPackage := strings.Contains(pktInfo.Pkg.Path(), organization)
 
 	for _, file := range pktInfo.Files {
 		if _, ok := p.fileImportNamed[file]; !ok {
@@ -155,7 +151,7 @@ func (p *Parser) Parse(modPath string, typeName string) map[string]StructInfo {
 		}
 		switch ost := objType.(type) {
 		case *ast.StructType:
-			structMaps := p.parseFileStruct(modPath, file, exParseMap, obj.Name, ost)
+			structMaps := p.parseFileStruct(modPath, file, exParseMap, obj.Name, ost, isOwnPackage)
 			for name, info := range structMaps {
 				res[name] = info
 			}
@@ -172,7 +168,7 @@ func (p *Parser) Parse(modPath string, typeName string) map[string]StructInfo {
 		case *ast.SelectorExpr:
 			subModPath := p.fileImportNamed[file][ost.X.(*ast.Ident).Name]
 			subTypeName := ost.Sel.Name
-			structMaps := p.Parse(subModPath, subTypeName)
+			structMaps := p.Parse(subModPath, subTypeName, "")
 			oldKey := TypeKey(subModPath, subTypeName)
 			info := structMaps[oldKey]
 			info.Describe += fmt.Sprintf("alias `%s`", oldKey)
@@ -248,7 +244,7 @@ func (p *Parser) parseTypeExpr(obj ast.Expr) []FieldInfo {
 		}
 		res = append(res, field)
 	case *ast.StructType:
-		res = p.parseStruct(ot, "").Fields
+		res = p.parseStruct(ot, "", false).Fields
 	case *ast.MapType:
 		prefix := fmt.Sprintf("{%s}.", ot.Key)
 		res = p.parseTypeExpr(ot.Value)
@@ -275,7 +271,7 @@ func (p *Parser) parseTypeExpr(obj ast.Expr) []FieldInfo {
 	return res
 }
 
-func (p *Parser) parseStruct(objStructType *ast.StructType, desc string) StructInfo {
+func (p *Parser) parseStruct(objStructType *ast.StructType, desc string, isOwnPackage bool) StructInfo {
 	res := StructInfo{
 		Describe: desc,
 		Fields:   make([]FieldInfo, 0, len(objStructType.Fields.List)),
@@ -287,16 +283,13 @@ func (p *Parser) parseStruct(objStructType *ast.StructType, desc string) StructI
 				{Name: f.Type.(fmt.Stringer).String()},
 			}
 		}
-		//if f.Names[0].Name[0] <= 'Z' && f.Names[0].Name[0] >= 'A' {
-		fmt.Println("parsing field", f.Names[0].Name)
-		res.Fields = append(res.Fields, p.parseStructField(f)...)
-		//}
+		res.Fields = append(res.Fields, p.parseStructField(f, isOwnPackage)...)
 	}
 
 	return res
 }
 
-func (p *Parser) parseStructField(f *ast.Field) []FieldInfo {
+func (p *Parser) parseStructField(f *ast.Field, isOwnPackage bool) []FieldInfo {
 	res := make([]FieldInfo, 0)
 
 	tagStr := ""
@@ -319,9 +312,9 @@ func (p *Parser) parseStructField(f *ast.Field) []FieldInfo {
 	if baseField.Name == "" {
 		baseField.Name = f.Names[0].Name
 	}
-
-	baseField.Describe += GetDescribeFromComment(f.Doc, f.Comment)
-
+	if !isOwnPackage {
+		baseField.Describe += GetDescribeFromComment(f.Doc, f.Comment)
+	}
 	if s, ok := f.Type.(*ast.StarExpr); ok {
 		f.Type = s.X
 	}
@@ -339,7 +332,7 @@ func (p *Parser) parseStructField(f *ast.Field) []FieldInfo {
 			res = append(res, baseField)
 		}
 	case *ast.StructType:
-		for _, f := range p.parseStruct(tt, baseField.Describe).Fields {
+		for _, f := range p.parseStruct(tt, baseField.Describe, false).Fields {
 			if tagInfo.Inline {
 				res = append(res, f)
 			} else {

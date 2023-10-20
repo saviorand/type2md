@@ -16,10 +16,11 @@ var (
 	dstTypes   []string
 )
 var (
-	fileName    = flag.String("f", "", "file path")
-	title       = flag.String("t", "", "file title")
-	tagType     = flag.String("tag", "json", "struct tag name")
-	showVersion = flag.Bool("v", false, "show version")
+	fileName     = flag.String("f", "", "file path")
+	title        = flag.String("t", "", "file title")
+	tagType      = flag.String("tag", "json", "struct tag name")
+	showVersion  = flag.Bool("v", false, "show version")
+	organization = flag.String("organization", "", "organization name")
 )
 
 func main() {
@@ -29,8 +30,12 @@ func main() {
 		PrintVersion()
 		os.Exit(0)
 	}
-	dstModPath = os.Args[len(os.Args)-2]
-	dstTypes = strings.Split(os.Args[len(os.Args)-1], ",")
+	args := flag.Args()
+	if len(args) < 2 {
+		log.Fatal("Not enough arguments provided")
+	}
+	dstModPath = args[len(args)-2]
+	dstTypes = strings.Split(args[len(args)-1], ",")
 
 	rootMod, _, _ := getModPath()
 	log.Println("Current Module:", rootMod)
@@ -43,7 +48,7 @@ func main() {
 
 	for _, tp := range dstTypes {
 		log.Printf("generating type tables %s.%s\n", dstModPath, tp)
-		fs := parser.Parse(dstModPath, tp)
+		fs := parser.Parse(dstModPath, tp, *organization)
 
 		md := Markdown{
 			Title:          *title,

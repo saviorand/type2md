@@ -1,6 +1,9 @@
 package test
 
-import "github.com/eleztian/type2md/test/ext"
+import (
+	"github.com/saviorand/type2md/test/ext"
+	"time"
+)
 
 //go:generate type2md -f ../docs/doc_config.md github.com/saviorand/type2md/test Config
 
@@ -10,6 +13,7 @@ type Config struct {
 	privateField string
 	Pre          ext.Hook
 	Post         *ext.Hook
+	timestamp    time.Time
 	Servers      map[string]struct {
 		Host string `json:"host,omitempty"`
 		Port int    `json:"port" enums:"22,65522" require:"false"`
